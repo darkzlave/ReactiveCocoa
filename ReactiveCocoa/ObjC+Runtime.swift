@@ -11,12 +11,18 @@ internal func class_getImmediateMethod(_ `class`: AnyClass, _ selector: Selector
 		defer { free(buffer) }
 
 		var iterator = buffer
-		while let method = iterator.pointee {
-			if method_getName(method) == selector {
-				return method
-			}
-			iterator = iterator.advanced(by: 1)
-		}
+//        while let method = iterator.pointee {
+//            if method_getName(method) == selector {
+//                return method
+//            }
+//            iterator = iterator.advanced(by: 1)
+//        }
+        let method = iterator.pointee
+            if method_getName(method) == selector {
+                return method
+            }
+            iterator = iterator.advanced(by: 1)
+        
 	}
 
 	return nil

@@ -139,7 +139,7 @@ extension NSObject {
 /// - parameters:
 ///   - realClass: The runtime subclass to be swizzled.
 private func enableMessageForwarding(_ realClass: AnyClass, _ selectorCache: SelectorCache) {
-	let perceivedClass: AnyClass = class_getSuperclass(realClass)
+    let perceivedClass: AnyClass = class_getSuperclass(realClass)!
 
 	typealias ForwardInvocationImpl = @convention(block) (Unmanaged<NSObject>, AnyObject) -> Void
 	let newForwardInvocation: ForwardInvocationImpl = { objectRef, invocation in
@@ -167,7 +167,7 @@ private func enableMessageForwarding(_ realClass: AnyClass, _ selectorCache: Sel
 			//
 			// However, the IMP cache would be thrashed due to the swapping.
 
-			let topLevelClass: AnyClass = object_getClass(objectRef.takeUnretainedValue())
+            let topLevelClass: AnyClass = object_getClass(objectRef.takeUnretainedValue())!
 
 			// The locking below prevents RAC swizzling attempts from intervening the
 			// invocation.
@@ -181,10 +181,10 @@ private func enableMessageForwarding(_ realClass: AnyClass, _ selectorCache: Sel
 				func swizzle() {
 					let interopImpl = class_getMethodImplementation(topLevelClass, interopAlias)
 
-					let previousImpl = class_replaceMethod(topLevelClass, selector, interopImpl, typeEncoding)
+                    let previousImpl = class_replaceMethod(topLevelClass, selector, interopImpl!, typeEncoding)
 					invocation.invoke()
 
-					_ = class_replaceMethod(topLevelClass, selector, previousImpl, typeEncoding)
+                    _ = class_replaceMethod(topLevelClass, selector, previousImpl!, typeEncoding)
 				}
 
 				if topLevelClass != realClass {
@@ -192,7 +192,7 @@ private func enableMessageForwarding(_ realClass: AnyClass, _ selectorCache: Sel
 						// In addition to swapping in the implementation, the message
 						// forwarding needs to be temporarily disabled to prevent circular
 						// invocation.
-						_ = class_replaceMethod(realClass, selector, nil, typeEncoding)
+						//_ = class_replaceMethod(realClass, selector, nil, typeEncoding)
 						swizzle()
 						_ = class_replaceMethod(realClass, selector, _rac_objc_msgForward, typeEncoding)
 					}
@@ -204,17 +204,18 @@ private func enableMessageForwarding(_ realClass: AnyClass, _ selectorCache: Sel
 			return
 		}
 
-		if let impl = method_getImplementation(method), impl != _rac_objc_msgForward {
+        let impl2 = method_getImplementation(method)
+		if impl2 != _rac_objc_msgForward {
 			// The perceived class, or its ancestors, responds to the selector.
 			//
 			// The implementation is invoked through the selector alias, which
 			// reflects the latest implementation of the selector in the perceived
 			// class.
 
-			if class_getMethodImplementation(realClass, alias) != impl {
+			if class_getMethodImplementation(realClass, alias) != impl2 {
 				// Update the alias if and only if the implementation has changed, so as
 				// to avoid thrashing the IMP cache.
-				_ = class_replaceMethod(realClass, alias, impl, typeEncoding)
+				_ = class_replaceMethod(realClass, alias, impl2, typeEncoding)
 			}
 
 			invocation.setSelector(alias)
@@ -245,7 +246,7 @@ private func enableMessageForwarding(_ realClass: AnyClass, _ selectorCache: Sel
 ///   - realClass: The runtime subclass to be swizzled.
 ///   - signatureCache: The method signature cache.
 private func setupMethodSignatureCaching(_ realClass: AnyClass, _ signatureCache: SignatureCache) {
-	let perceivedClass: AnyClass = class_getSuperclass(realClass)
+    guard let perceivedClass: AnyClass = class_getSuperclass(realClass) else { return }
 
 	let newMethodSignatureForSelector: @convention(block) (Unmanaged<NSObject>, Selector) -> AnyObject? = { objectRef, selector in
 		if let signature = signatureCache[selector] {
