@@ -7,22 +7,16 @@
 ///
 /// - returns: The matching method, or `nil` if none is found.
 internal func class_getImmediateMethod(_ `class`: AnyClass, _ selector: Selector) -> Method? {
-	if let buffer = class_copyMethodList(`class`, nil) {
+    if let buffer:UnsafeMutablePointer<Method>? = class_copyMethodList(`class`, nil) {
 		defer { free(buffer) }
 
-		var iterator = buffer
-//        while let method = iterator.pointee {
-//            if method_getName(method) == selector {
-//                return method
-//            }
-//            iterator = iterator.advanced(by: 1)
-//        }
-        let method = iterator.pointee
+        var iterator:UnsafeMutablePointer<Method>? = buffer
+        while let method = iterator?.pointee {
             if method_getName(method) == selector {
                 return method
             }
-            iterator = iterator.advanced(by: 1)
-        
+            iterator = iterator?.advanced(by: 1)
+        }
 	}
 
 	return nil

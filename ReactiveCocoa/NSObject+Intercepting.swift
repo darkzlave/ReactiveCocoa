@@ -139,7 +139,7 @@ extension NSObject {
 /// - parameters:
 ///   - realClass: The runtime subclass to be swizzled.
 private func enableMessageForwarding(_ realClass: AnyClass, _ selectorCache: SelectorCache) {
-    let perceivedClass: AnyClass = class_getSuperclass(realClass)!
+    let perceivedClass: AnyClass = class_getSuperclass(realClass)  ?? NSObject.classForCoder()
 
 	typealias ForwardInvocationImpl = @convention(block) (Unmanaged<NSObject>, AnyObject) -> Void
 	let newForwardInvocation: ForwardInvocationImpl = { objectRef, invocation in
@@ -157,7 +157,8 @@ private func enableMessageForwarding(_ realClass: AnyClass, _ selectorCache: Sel
 		let method = class_getInstanceMethod(perceivedClass, selector)!
 		let typeEncoding = method_getTypeEncoding(method)
 
-		if class_respondsToSelector(realClass, interopAlias) {
+		if class_respondsToSelector(realClass, interopAlias),
+            let topLevelClass: AnyClass = object_getClass(objectRef.takeUnretainedValue()) {
 			// RAC has preserved an immediate implementation found in the runtime
 			// subclass that was supplied by an external party.
 			//
@@ -166,8 +167,6 @@ private func enableMessageForwarding(_ realClass: AnyClass, _ selectorCache: Sel
 			// forwarder afterwards.
 			//
 			// However, the IMP cache would be thrashed due to the swapping.
-
-            let topLevelClass: AnyClass = object_getClass(objectRef.takeUnretainedValue())!
 
 			// The locking below prevents RAC swizzling attempts from intervening the
 			// invocation.
@@ -181,10 +180,10 @@ private func enableMessageForwarding(_ realClass: AnyClass, _ selectorCache: Sel
 				func swizzle() {
 					let interopImpl = class_getMethodImplementation(topLevelClass, interopAlias)
 
-                    let previousImpl = class_replaceMethod(topLevelClass, selector, interopImpl!, typeEncoding)
+                    guard let previousImpl = class_replaceMethod(topLevelClass, selector, interopImpl!, typeEncoding) else { return }
 					invocation.invoke()
 
-                    _ = class_replaceMethod(topLevelClass, selector, previousImpl!, typeEncoding)
+                    _ = class_replaceMethod(topLevelClass, selector, previousImpl, typeEncoding)
 				}
 
 				if topLevelClass != realClass {

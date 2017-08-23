@@ -63,15 +63,15 @@ extension Reactive where Base: AnyObject & NSObjectProtocol {
 						// Release the lifetime token.
 						unsafeSetAssociatedValue(nil, forKey: lifetimeTokenKey, forObjectAt: objectRef)
 
-						let impl: IMP
+						let impl: IMP?
 
 						// Call the existing implementation if one has been caught. Otherwise,
 						// call the one first available in the superclass hierarchy.
 						if let existingImpl = existingImpl {
 							impl = existingImpl
 						} else {
-                            let superclass: AnyClass = class_getSuperclass(objcClass)!
-                            impl = class_getMethodImplementation(superclass, deallocSelector)!
+                            let superclass: AnyClass = class_getSuperclass(objcClass) ?? NSObject.classForCoder()
+                            impl = class_getMethodImplementation(superclass, deallocSelector)
 						}
 
 						typealias Impl = @convention(c) (UnsafeRawPointer, Selector) -> Void
@@ -80,17 +80,17 @@ extension Reactive where Base: AnyObject & NSObjectProtocol {
 
 					let newImpl =  imp_implementationWithBlock(newImplBlock as Any)
 
-					if !class_addMethod(objcClass, deallocSelector, newImpl, "v@:") {
+					if !class_addMethod(objcClass, deallocSelector, newImpl, "v@:"),
+                        let deallocMethod = class_getInstanceMethod(objcClass, deallocSelector) {
 						// The class has an existing `dealloc`. Preserve that as `existingImpl`.
-						let deallocMethod = class_getInstanceMethod(objcClass, deallocSelector)
 
 						// Store the existing implementation to `existingImpl` to ensure it is
 						// available before our version is swapped in.
-                        existingImpl = method_getImplementation(deallocMethod!)
+                        existingImpl = method_getImplementation(deallocMethod)
 
 						// Store the swapped-out implementation to `existingImpl` in case
 						// the implementation has been changed concurrently.
-                        existingImpl = method_setImplementation(deallocMethod!, newImpl)
+                        existingImpl = method_setImplementation(deallocMethod, newImpl)
 					}
 				}
 			}
